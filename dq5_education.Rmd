@@ -1,0 +1,450 @@
+---
+title: "dq5_education"
+author: "Suneethi"
+date: "12/1/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+# importing tidyverse, reading the districts.csv file, renaming some columns and getting summary of the data
+```{r cars}
+library(tidyverse)
+dist<-read_csv("data/districts.csv") %>%
+rename(district_no=system, county_city=system_name, english_learner=el)
+head(dist)
+
+summary(dist)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+dist %>% 
+ggplot(aes(x = grad)) +
+  geom_histogram(bins=10)+ 
+  labs()
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+#Installing readxl package to read the excel file
+```{r}
+install.packages("readxl")
+```
+
+#reading the excel file and renaming the columns
+```{r}
+library(readxl)
+dist_to_county<-read_excel('data/data_district_to_county_crosswalk.xls') %>% 
+  rename(district_no=`District Number`, county=`County Name`)
+glimpse(dist_to_county)
+
+```
+
+Merging the districts.csv and district_to_county_crosswalk files
+```{r}
+dist<-full_join(dist, dist_to_county, by="district_no") %>% 
+  select(district_no, county_city, county, region, everything())
+```
+#To determine the correlation coefficient and p value:
+cor(new_both$grad, new_both$TOTAL_RATIO, method = "pearson", use = "complete.obs")
+cor.test(new_both$grad, new_both$TOTAL_RATIO, method = "pearson", use = "complete.obs")
+In this, "use" is because we have some NaN values
+#Removing the state of tennessee:
+```{r, eval=FALSE}
+dist<-
+  filter(dist, county_city != "State of Tennessee")
+```
+
+#correlation between chronic_absenteeism and economically disadvantaged
+```{r}
+dist %>% 
+  ggplot(aes(x=ed, y=act_composite, color=region))+
+  geom_point()+
+  labs(x="Economically disadvantage percent", y="ACT Composite", title="economically disadvantaged percent and ACT scores are negatively correlated")
+```
+
+ed vs grad rate
+
+```{r}
+dist %>% 
+  ggplot(aes(x=ed, y=grad, color=region))+
+  geom_point()+
+  labs(title="economically disadvantaged percent and graduation rate are not related")
+```
+
+expense vs grad rate
+
+```{r}
+dist %>% 
+  ggplot(aes(x=expenditures, y=grad, color=region))+
+  geom_point()+
+  labs(title="Expenditure and graduation rate")
+```
+
+
+```{r}
+dist %>% 
+  ggplot(aes(x=english_learner, y=grad, color=region))+
+  geom_point()+
+  ylim(c(25, 100))
+  
+
+
+```
+
+
+
+```{r}
+dist_teach_stu_grad_nona %>% 
+  select(grad, english_learner) %>% 
+  cor()
+```
+
+Relation betwen swd and grad
+result: need to look at the number of swd in each county. there does not seem to 
+```{r}
+dist %>% 
+  ggplot(aes(x=swd, y=grad, color=region))+
+  geom_point()+
+  xlim(c(5, 25)) +
+  ylim(c(50, 100))+
+  labs(title = "Positive Correlation between SWD and Graduation Rate")
+  #facet_wrap(~region)
+  
+```
+
+Groupby region and look within the counties within regions:
+```{r}
+dist %>% 
+  top_n(5, dropout) %>% 
+  ggplot(aes(x=county_city, y=dropout, fill=county)) +
+  geom_col() +
+  xlab('Dropout Percent') +
+  labs(title="Counties with highest dropout rate")+
+  coord_flip()+
+  theme(
+    plot.background = element_rect(fill = "transparent", color = NA),
+    panel.grid.major = element_blank())
+   # axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+
+
+```{r}
+dist %>% 
+  top_n(-5, dropout) %>% 
+  View()
+  
+```
+
+Xin brought in the income using michaels' code. public and private school data from census API. chronic_abs with grad rate
+#Bring new dataset that has info about teachers and students:
+```{r}
+dist_teacher_stu <- read_excel('data/data_2014-15_district_profile.xlsx')
+dist_teacher_stu<- dist_teacher_stu %>% 
+  rename(district_no=DISTRICT)
+dist_teacher_stu1<- dist_teacher_stu %>% 
+  select(district_no, TEACHERS, TOTAL)
+dist_teacher_stud<-full_join(dist, dist_teacher_stu1, by="district_no")
+grad_rate<- read_excel('data/data_2014_District-Attendance-and-Graduation.xlsx')
+grad_rate<- grad_rate %>% 
+  select(District, District_Name, HS_Attendance_Rate_PCT, White_grad_rate, African_American_grad_rate, Hispanic_grad_rate, Asian_grad_rate) %>% 
+  rename(district_no=District)
+dist_teach_stu_grad<-full_join(dist_teacher_stud, grad_rate, by="district_no")
+
+glimpse(dist_teach_stu_grad)
+
+```
+
+
+
+```{r}
+dist_teach_stu_grad %>% 
+  summarise_all(funs(sum(is.na(.)))) 
+  
+```
+
+Replace missing values with mean
+
+```{r}
+dist_teach_stu_grad1<-dist_teach_stu_grad %>% 
+  mutate(alg_1 = ifelse(is.na(alg_1), mean(alg_1, na.rm=TRUE), alg_1)) %>% 
+  mutate(alg_2 = ifelse(is.na(alg_2), mean(alg_2, na.rm=TRUE), alg_2)) %>% 
+  mutate(bio = ifelse(is.na(bio), mean(bio, na.rm=TRUE), bio)) %>% 
+  mutate(chem = ifelse(is.na(chem), mean(chem, na.rm=TRUE), chem)) %>% 
+  mutate(ela = ifelse(is.na(ela), mean(ela, na.rm=TRUE), ela)) %>% 
+  mutate(eng_1 = ifelse(is.na(eng_1), mean(eng_1, na.rm=TRUE), eng_1)) %>% 
+  mutate(eng_2 = ifelse(is.na(eng_2), mean(eng_2, na.rm=TRUE), eng_2)) %>% 
+  mutate(eng_3 = ifelse(is.na(eng_3), mean(eng_3, na.rm=TRUE), eng_3)) %>% 
+  mutate(math = ifelse(is.na(math), mean(math, na.rm=TRUE), math)) %>% 
+  mutate(science = ifelse(is.na(science), mean(science, na.rm=TRUE), science)) %>% 
+  mutate(enrollment = ifelse(is.na(enrollment), mean(enrollment, na.rm=TRUE), enrollment)) %>% 
+  mutate(dropout = ifelse(is.na(dropout), mean(dropout, na.rm=TRUE), dropout)) %>% 
+  mutate(act_composite = ifelse(is.na(act_composite), mean(act_composite, na.rm=TRUE), act_composite)) %>% 
+  mutate(ed = ifelse(is.na(ed), mean(ed, na.rm=TRUE), ed)) %>% 
+  mutate(expenditures = ifelse(is.na(expenditures), mean(expenditures, na.rm=TRUE), expenditures))
+  
+```
+'TEACHERS',  'swd',
+                 'english_learner', 'hispanic', 'black',
+                 'native',  
+remove few datasets that dont have county name- mainly deaf schools
+```{r}
+dist_teach_stu_grad1 <- dist_teach_stu_grad1 %>% 
+  filter(county_city!= "West Tenn School for Deaf") %>% 
+  filter(county_city!= "Tenn School for Blind") %>% 
+  filter(county_city!= "Tenn School for Deaf") %>% 
+  select(-District_Name)
+```
+
+
+
+read the tvaas dataset and full_join with dist_teach_stu_grad_nona
+```{r}
+tvaas<-read_csv('data/tvaas.csv')
+tvaas<- tvaas %>% 
+  rename(district_no= `District Number`, county=`District Name`)
+dist_teach_stu_grad1_tvaas<- full_join(dist_teach_stu_grad1, tvaas, by="district_no")
+dist_teach_stu_grad1_tvaas<-dist_teach_stu_grad1_tvaas %>% 
+  select(-county.y) 
+dist_teach_stu_grad1_tvaas<-dist_teach_stu_grad1_tvaas %>% 
+  rename(county=county.x)
+glimpse(dist_teach_stu_grad1_tvaas)
+```
+
+
+
+Plots done by Barrett
+teacher-student ratio, teacher-student ratio vs race_pct
+ratio of race-teacher ratio to grad rate
+ratio of total teacher-total student ratio to grad rate
+act_composites vs dropout, expenditures
+ed vs dropout
+
+number of teachers in each region
+
+
+
+Data from census API
+```{r}
+library(censusapi)
+```
+```{r}
+key=read_lines("data/key")
+apis<- listCensusApis()
+View(apis)
+saipe_vars<-listCensusMetadata(name='timeseries/poverty/saipe', 
+                               type='variables')
+head(saipe_vars)
+listCensusMetadata(name='timeseries/poverty/saipe', 
+                   type='geography')
+```
+Decided to use small area income and poverty (called as saipe)estimates instead of the school district (named as siape_county_vars)
+```{r}
+poverty<-getCensus(name='timeseries/poverty/saipe', key=key, vars=c("SAEMHI_UB90", "SAEMHI_LB90", "SAEPOVALL_PT", "SAEPOVALL_UB90", "SAEPOVALL_LB90", "SAEMHI_PT", "STABREV", "NAME"), time="from 2014 to 2015", region= "county:*", regionin="state:47")
+
+#Rename the columns
+poverty<-poverty %>% 
+  rename(county_fips=county, median_income_UB= SAEMHI_UB90, median_income_LB= SAEMHI_LB90, poverty_est=SAEPOVALL_PT, poverty_UB= SAEPOVALL_UB90, poverty_LB = SAEPOVALL_LB90, median_income_est=SAEMHI_PT, state_abv=STABREV, county=NAME)
+
+head(poverty)
+  
+```
+
+Merge dist_teach_stu_ with poverty
+```{r}
+dist_teach_stu_grad1_tvaas_pov<-full_join(dist_teach_stu_grad1_tvaas, poverty, by="county") 
+dist_teach_stu_grad1_tvaas_pov<- dist_teach_stu_grad1_tvaas_pov %>% filter(district_no!= "963") %>% 
+  filter(district_no!="964") %>% 
+  filter(district_no!="970")
+
+#head(dist_teach_stu_grad1_tvaas_pov)
+```
+
+County with highest poverty 
+
+```{r}
+dist_teach_stu_grad1_tvaas_pov %>% 
+  top_n(5, poverty_UB) %>% 
+  ggplot(aes(x=county_city, y=poverty_UB, fill=county)) +
+  geom_col() +
+  xlab('County/City') +
+  labs(title="Counties with highest Poverty")+
+  coord_flip()+
+  theme(
+    plot.background = element_rect(fill = "transparent", color = NA),
+    panel.grid.major = element_blank())
+```
+
+
+```{r}
+dist_teach_stu_grad1_tvaas_pov %>% 
+  filter(county=='Shelby County') %>% 
+  #View()
+  ggplot(aes(x=county_city, y=act_composite)) +
+  geom_col() +
+  coord_flip()
+  #xlab('Poverty') +
+  #labs(title="Counties with highest Poverty")
+  
+
+```
+
+
+```{r}
+dist_teach_stu_grad1_tvaas_pov %>% 
+  arrange(poverty_est) %>% 
+  ggplot(aes(x=poverty_est, y=grad, color=region))+
+  geom_point()+
+  theme( axis.text.x=element_blank())+
+  #xlim(c(0, 50000)) +
+  #ylim(c(50, 100))+
+  labs(title = "Correlation between poverty and Graduation Rate")
+```
+
+
+
+```{r}
+dist_teach_stu_grad1_tvaas_pov %>% 
+   arrange(median_income_est) %>% 
+  top_n(5, median_income_est) %>% 
+  ggplot(aes(x=county_city, y=median_income_est, fill=county)) +
+  geom_col() +
+  xlab('County/City') +
+  labs(title="Counties with highest Income")+
+  coord_flip()+
+  theme(
+    plot.background = element_rect(fill = "transparent", color = NA),
+    panel.grid.major = element_blank())
+```
+
+```{r}
+head (dist_teach_stu_grad1_tvaas_pov)
+```
+
+
+```{r}
+dist_teach_stu_grad1_tvaas_pov %>% 
+  arrange(median_income_est) %>% 
+  ggplot(aes(x=median_income_est, y=grad, color=region))+
+  geom_point()+
+  #theme( axis.text.x=element_blank())+
+  #xlim(c(0, 50000)) +
+  #ylim(c(50, 100))+
+  labs(title = "Correlation between income and Graduation Rate")
+```
+
+merge TVAAS on district_no
+```{r}
+dist_teach_stu_grad_pov_nona<-full_join(dist_teach_stu_grad_pov_nona, tvaas, by="District Number")
+```
+
+Lasso and Ridge models
+
+```{r}
+predictors <- c('alg_1', 'alg_2', 'chem', 'bio', 'ela', 'eng_1', 'eng_2', 'eng_3', 'math',
+                 'science', 'act_composite', 'TEACHERS', 'enrollment', 'swd',
+                 'english_learner', 'ed', 'hispanic', 'black',
+                 'native', 'expenditures', 'poverty_UB', 'median_income_UB')
+
+dist_predictors <- dist_teach_stu_grad1_tvaas_pov %>%
+  select(c(predictors, 'grad'))
+
+library(caret)
+
+index = createDataPartition(dist_predictors$grad, p = 0.75, list = FALSE)
+
+trainSet <- dist_predictors[index,]
+testSet <- dist_predictors[-index,]
+
+library(glmnet)
+x_train <- trainSet %>% 
+  select(-grad) %>% 
+  as.matrix()
+x_test <- testSet %>% 
+  select(-grad) %>% 
+  as.matrix()
+
+y_train <- trainSet$grad
+y_test <- testSet$grad
+
+
+preProcValues <- preProcess(x_train, method = c("center", "scale"))
+
+x_trainTransformed <- predict(preProcValues, x_train)
+x_testTransformed <- predict(preProcValues, x_test)
+
+cv <- cv.glmnet(x_trainTransformed, y_train, alpha = 1)
+cv$lambda.min
+
+lasso_model <- glmnet(x_trainTransformed, y_train, alpha = 1, lambda = cv$lambda.min)
+
+coef(lasso_model)
+```
+
+
+```{r}
+library(coefplot)
+coefplot(lasso_model, sort='magnitude')
+
+```
+
+
+
+```{r}
+train_pred <- predict(lasso_model, newx = x_trainTransformed)
+MAE(pred = train_pred, obs = y_train)
+```
+
+
+```{r}
+test_pred <- predict(lasso_model, newx = x_testTransformed)
+MAE(pred = test_pred, obs = y_test)
+```
+
+```{r}
+glimpse(dist_teach_stu_grad_nona)
+```
+
+
+
+
+looking at poverty across the different school districts- specifically what geography
+```{r}
+listCensusMetadata(name='timeseries/poverty/saipe/schdist', 
+                   type='geography')
+fips
+```
+
+
+```{r}
+saipe_county_vars<-listCensusMetadata(name='timeseries/poverty/saipe/schdist', 
+                               type='variables')
+saipe_county_vars
+
+
+```
+```{r}
+getCensus(name='timeseries/poverty/saipe/schdist', key=key, vars=c('SD_NAME', 'SAEPOV5_17RV_PT', "LEAID"), time="from 2014 to 2015", region= "school district (unified)", regionin="state:47")
+```
+
+
+
+
+```{r}
+
+
+
+
